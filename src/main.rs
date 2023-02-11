@@ -38,7 +38,7 @@ fn main() {
 		.allowed_updates(vec![AllowedUpdate::Message])
 		.build();
 	loop {
-		let dur = time::Duration::new(1, 0);
+		let dur = time::Duration::from_millis(500);
 		thread::sleep(dur);
 		let result = TelegramApi::get_updates(&api, &updates_params);
 		match result {

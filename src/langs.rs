@@ -17,7 +17,7 @@ impl Strings {
 					"Hallo. Dies ist ein digitales Liederbuch. :)\n",
 					"/list - Listet alle Lieder auf.\n",
 					"Ansonsten tippe einfach den Titel oder Teile des Titels",
-					"des Liedes ein und du bekommst dein Lied zugeschickt."
+					" des Liedes ein und du bekommst dein Lied zugeschickt."
 				).to_string();
 				song_not_found = "Kein Lied mit diesem Titel gefunden.".to_string();
 			},
@@ -26,7 +26,7 @@ impl Strings {
 					"Salut! Această e o carte de cântari digitală. :)\n",
 					"/list - Listează toate cântările.\n",
 					"Deasemenea puteți introduce titlul sau cuvinte din titlul",
-					"cântării iar bot-ul va găsi piesa corespondentă."
+					" cântării iar bot-ul va găsi piesa corespondentă."
 				).to_string();
 				song_not_found = "Niciun cântec găsit cu acest nume".to_string();
 			},
