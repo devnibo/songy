@@ -6,7 +6,7 @@ This is a telegram bot written in [rust](https://www.rust-lang.org/) using the [
 
 This bot provides an interface to files. It is meant to be used as a digital songbook.
 
-![example](https://github.com/devrobinkroeker/songs/blob/master/example.gif?raw=true)
+<img src="https://github.com/devrobinkroeker/songs/blob/master/example.gif?raw=true" alt="example" height="600" />
 
 ## installation
 
