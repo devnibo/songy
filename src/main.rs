@@ -240,5 +240,6 @@ fn get_all_songs(songs_path: &String) -> Vec<String> {
 			println!("Cannot open/read or what ever the --songs-path.");
 		}
 	}
+	songs.sort_by_key(|name| name.to_lowercase());
 	return songs;
 }
