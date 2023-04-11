@@ -5,7 +5,7 @@
 # run in on any x86_64 based system. (That's how I understand it)
 read -p "Version Number (e.g. v1.2.3): " versionNumber
 declare -a cmds=(
-	"git tag -a $versionNumber -m '$versionNumber'"
+	"git tag $versionNumber"
 	"cargo build -r --target x86_64-unknown-linux-musl"
 	"cp target/x86_64-unknown-linux-musl/release/songs ."
 	"mv songs songs_"$versionNumber"_x86_64-unknown-linux-musl"

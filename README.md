@@ -8,6 +8,11 @@ This bot provides an interface to files. It is meant to be used as a digital son
 
 <img src="https://github.com/devrobinkroeker/songs/raw/master/example.gif" alt="example" height="600" />
 
+### bot commands
+
+To let telegram know what commands the bot provides you have to set these in the [BotFather](https://telegram.me/BotFather).
+The `/list` command lists all available files in the provided --songs-path recursively. There is one thing you can do for additional structuring. Suppose you have provided the path `/var/songs` as the --songs-path. If you create the subfolder `/var/songs/en` then the command `/en` will be available in the bot to list only files/songs recursively in that subfolder. That way you could organize your songs in different languages.
+
 ## installation
 
 1. Download the [latest release](https://github.com/devrobinkroeker/songs/releases) executable
