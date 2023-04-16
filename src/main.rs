@@ -283,5 +283,6 @@ fn get_files_recursive(folder_path: &String) -> Vec<fs::DirEntry> {
 			println!("Cannot open/read or what ever the path {}.", folder_path);
 		}
 	}
+	songs.sort_by_key(|name| name.file_name().into_string().expect("Error").to_lowercase());
 	return songs;
 }
