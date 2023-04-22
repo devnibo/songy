@@ -217,7 +217,9 @@ fn find_songs(search_string: &String, songs_path: &String, strings: &langs::Stri
 		let mut name: String = f.get(0).expect("Error: get(0)").to_string();
 		name = name.to_lowercase();
 		let ss = strings.format(search_string).to_lowercase();
-		if name.contains(&ss) {
+		if name == ss {
+			songs.push(file)
+		} else if name.contains(&ss) {
 			songs.push(file);
 		}
 	}
