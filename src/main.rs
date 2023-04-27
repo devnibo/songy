@@ -212,23 +212,16 @@ fn find_songs(search_string: &String, songs_path: &String, strings: &langs::Stri
 	let mut result: Vec<fs::DirEntry> = vec![];
 	let mut filename: String;
 	let ss = strings.format(search_string).to_lowercase();
-	// Check for exact match
 	for file in get_songs(songs_path, None) {
 		filename = file.file_name().to_str().expect("Error: name").to_string();
 		let f: Vec<&str> = filename.split(".").collect();
 		let mut name: String = f.get(0).expect("Error: get(0)").to_string();
 		name = name.to_lowercase();
 		if name == ss {
-			result.push(file)
-		}
-	}
-	// Check for partial match
-	for file in get_songs(songs_path, None) {
-		filename = file.file_name().to_str().expect("Error: name").to_string();
-		let f: Vec<&str> = filename.split(".").collect();
-		let mut name: String = f.get(0).expect("Error: get(0)").to_string();
-		name = name.to_lowercase();
-		if name.contains(&ss) {
+			let mut one = vec![file];
+			one.append(&mut result);
+			result = one;
+		} else if name.contains(&ss) {
 			result.push(file);
 		}
 	}
