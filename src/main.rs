@@ -209,40 +209,36 @@ fn get_folder_names(songs_path: &String) -> Vec<String> {
 }
 
 fn find_songs(search_string: &String, songs_path: &String, strings: &langs::Strings) -> Result<Vec<fs::DirEntry>, ErrNotFound> {
-	let mut songs: Vec<fs::DirEntry> = vec![];
+	let mut result: Vec<fs::DirEntry> = vec![];
 	let mut filename: String;
+	let ss = strings.format(search_string).to_lowercase();
+	// Check for exact match
 	for file in get_songs(songs_path, None) {
 		filename = file.file_name().to_str().expect("Error: name").to_string();
 		let f: Vec<&str> = filename.split(".").collect();
 		let mut name: String = f.get(0).expect("Error: get(0)").to_string();
 		name = name.to_lowercase();
-		let ss = strings.format(search_string).to_lowercase();
 		if name == ss {
-			songs.push(file)
-		} else if name.contains(&ss) {
-			songs.push(file);
+			result.push(file)
 		}
 	}
-	if songs.len() > 0 {
-		return Ok(songs);
+	// Check for partial match
+	for file in get_songs(songs_path, None) {
+		filename = file.file_name().to_str().expect("Error: name").to_string();
+		let f: Vec<&str> = filename.split(".").collect();
+		let mut name: String = f.get(0).expect("Error: get(0)").to_string();
+		name = name.to_lowercase();
+		if name.contains(&ss) {
+			result.push(file);
+		}
+	}
+	if result.len() > 0 {
+		return Ok(result);
 	}
 	else {
 		return Err(ErrNotFound { message: "Didn't find any song.".to_string() });
 	}
 }
-
-/* fn get_song(song_name: &str, songs_path: &String) -> Result<String, ErrNotFound> {
-	for file in get_songs(songs_path) {
-		let f: Vec<&str> = file.split(".").collect();
-		let name: &str = f.get(0).expect("Error: get(0)");
-		if name == song_name {
-			let mut filepath = songs_path.to_owned();
-			filepath.push_str(&file);
-			return Ok(filepath);
-		}
-	}
-	return Err(ErrNotFound { message: "Didn't find song.".to_string() });
-} */
 
 fn get_songs(songs_path: &String, folder_name: Option<&String>) -> Vec<fs::DirEntry> {
 	match folder_name {
