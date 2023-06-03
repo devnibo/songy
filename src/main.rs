@@ -14,6 +14,15 @@ use std::{fs, thread, time};
 
 mod langs;
 
+/*
+ * 4096 is the max character length
+ * of the text parameter in the sendMessage
+ * method of the telegram bot api
+ * (char>=1byte )
+ * see: https://core.telegram.org/bots/api#sendmessage
+*/
+const MAX_TEXT_LEN: usize = 4096;
+
 struct ErrNotFound {
 	message: String
 }
@@ -86,12 +95,12 @@ fn handle_text_message(api: &Api, msg: &Message, strings: &langs::Strings, songs
 	match text {
 		"/start" => {
 			params.text = (*strings.start_msg).to_string();
-			send_message(api, &params);
+			send_message(api, &mut params);
 		},
 		"/list" => {
 			let songs = get_songs(songs_path, None);
 			params.text = form_message(&songs);
-			send_message(api, &params);
+			send_message(api, &mut params);
 		},
 		_ => {
 			if text.starts_with("/") {
@@ -99,7 +108,7 @@ fn handle_text_message(api: &Api, msg: &Message, strings: &langs::Strings, songs
 					if text == "/".to_owned() + name.as_str() {
 						let songs = get_songs(songs_path, Some(&name));
 						params.text = form_message(&songs);
-						send_message(api, &params);
+						send_message(api, &mut params);
 						return;
 					}
 				}
@@ -120,7 +129,7 @@ fn handle_text_message(api: &Api, msg: &Message, strings: &langs::Strings, songs
 					Err(err) => {
 						println!("{}", err.message);
 						params.text = (*strings.song_not_found).to_string();
-						send_message(api, &params);
+						send_message(api, &mut params);
 					}
 				}
 			}
@@ -141,12 +150,12 @@ fn handle_text_message(api: &Api, msg: &Message, strings: &langs::Strings, songs
 						}
 						else {
 							params.text = form_message(&files);
-							send_message(api, &params);
+							send_message(api, &mut params);
 						}
 					},
 					Err(err) => {
 						params.text = (*strings.song_not_found).to_string();
-						send_message(api, &params);
+						send_message(api, &mut params);
 						println!("{}", err.message);
 					}
 				}
@@ -166,14 +175,74 @@ fn send_document(api: &Api, params: &SendDocumentParams) {
 	}
 }
 
-fn send_message(api: &Api, params: &SendMessageParams) {
-	let result = api.send_message(params);
-	match result {
-		Err(err) => {
-			println!("send_message failed.");
-			dbg!(err);
-		},
-		Ok(_res) => {}
+fn send_message(api: &Api, params: &mut SendMessageParams) {
+	let text_len = params.text.chars().count();
+	let msg_count = text_len as f64 / MAX_TEXT_LEN as f64;
+	if msg_count <= 1.0 {
+		let result = api.send_message(params);
+		match result {
+			Err(err) => {
+				println!("send_message failed.");
+				dbg!(err);
+			},
+			Ok(_res) => {}
+		}
+	} else {
+		let mut text: String = params.text.clone();
+		let mut part: &str;
+		loop {
+			if text.chars().count() > MAX_TEXT_LEN {
+				match find_last_line_break(text.clone()) {
+					Ok(index) => {
+						part = &text[..index];
+						params.text = part.to_string();
+						let result = api.send_message(params);
+						match result {
+							Err(err) => {
+								println!("send_message failed.");
+								dbg!(err);
+							},
+							Ok(_res) => {}
+						}
+						text = text[index+1..].to_string();
+					},
+					Err(_) => {
+						println!("Dude, there's no line break. Deal with it.");
+					}
+				}
+			} else {
+				params.text = text;
+				let result = api.send_message(params);
+				match result {
+					Err(err) => {
+						println!("send_message failed.");
+						dbg!(err);
+					},
+					Ok(_res) => {}
+				}
+				break;
+			}
+		}
+	}
+}
+
+fn find_last_line_break(text: String) -> Result<usize, usize> {
+	let mut i: usize = MAX_TEXT_LEN as usize;
+	loop {
+		if i == 0 {
+			return Err(i);
+		}
+		match text.chars().nth(i) {
+			Some(c) => {
+				if c == '\n' {
+					return Ok(i);
+				}
+			},
+			None => {
+				println!("nth error");
+			}
+		}
+		i -= 1;
 	}
 }
 
