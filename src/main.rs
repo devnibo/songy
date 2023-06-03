@@ -39,8 +39,8 @@ struct Args {
 
 fn main() {
 	let args = Args::parse();
-	let strings = langs::Strings::new(args.lang);
 	let songs_path: String = add_ending_slash(args.songs_path);
+	let strings = langs::Strings::new(args.lang, songs_path.clone());
 	let api = Api::new(&args.token.as_str());
 	let mut updates_params = GetUpdatesParams::builder()
 		.allowed_updates(vec![AllowedUpdate::Message])
@@ -104,7 +104,7 @@ fn handle_text_message(api: &Api, msg: &Message, strings: &langs::Strings, songs
 		},
 		_ => {
 			if text.starts_with("/") {
-				for name in get_folder_names(songs_path) {
+				for name in langs::get_folder_names(songs_path) {
 					if text == "/".to_owned() + name.as_str() {
 						let songs = get_songs(songs_path, Some(&name));
 						params.text = form_message(&songs);
@@ -259,22 +259,6 @@ fn form_message(songs: &Vec<fs::DirEntry>) -> String {
 		message.push_str(command.as_str());
 	}
 	return message;
-}
-
-fn get_folder_names(songs_path: &String) -> Vec<String> {
-	let songs_dir = fs::read_dir(songs_path).expect("Error: read_dir songs_path");
-	let mut folder_names: Vec<String> = vec![];
-	let mut is_dir: bool;
-	let mut dir_entry;
-	for f in songs_dir {
-		dir_entry = f.expect("Error: f");
-		is_dir = dir_entry.file_type().expect("Error: is_dir").is_dir();
-		if is_dir {
-			let name: String = dir_entry.file_name().to_str().expect("Error: filename").to_string();
-			folder_names.push(name)
-		}
-	}
-	return folder_names;
 }
 
 fn find_songs(search_string: &String, songs_path: &String, strings: &langs::Strings) -> Result<Vec<fs::DirEntry>, ErrNotFound> {
