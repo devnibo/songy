@@ -8,8 +8,8 @@ test ${versionNumber:0:1} != "v" && versionNumber="v""$versionNumber"
 declare -a cmds=(
 	"git tag $versionNumber"
 	"cargo build -r --target x86_64-unknown-linux-musl"
-	"cp target/x86_64-unknown-linux-musl/release/songs ."
-	"mv songs songs_"$versionNumber"_x86_64-unknown-linux-musl"
+	"cp target/x86_64-unknown-linux-musl/release/songy ."
+	"mv songy songy_"$versionNumber"_x86_64-unknown-linux-musl"
 )
 for (( i=0; i<${#cmds[@]}; i++ ));
 do

@@ -1,4 +1,4 @@
-# songs
+# songy
 
 This is a telegram bot written in [rust](https://www.rust-lang.org/) using the [frankenstein](https://github.com/ayrat555/frankenstein) telegram bot library.
 
@@ -6,7 +6,7 @@ This is a telegram bot written in [rust](https://www.rust-lang.org/) using the [
 
 This bot provides an interface to files. It is meant to be used as a digital songbook.
 
-<img src="https://github.com/devrobinkroeker/songs/raw/master/example.gif" alt="example" height="600" />
+<img src="https://github.com/devnibo/songy/raw/master/example.gif" alt="example" height="600" />
 
 ### bot commands
 
@@ -15,7 +15,7 @@ The `/list` command lists all available files in the provided --songs-path recur
 
 ## installation
 
-1. Download the [latest release](https://github.com/devrobinkroeker/songs/releases) executable
+1. Download the [latest release](https://github.com/devnibo/songy/releases) executable
 2. Decide about the configuration
 	1. [Create a telegram bot](https://telegram.me/BotFather) to obtain the bot api token (--token)
 	2. Which language do you want the bot to speak? english, german or moldovan (--lang)
@@ -26,17 +26,17 @@ The `/list` command lists all available files in the provided --songs-path recur
 
 As the bot has to run endlessly you probably want to create some sort of background service. Here's a simple solution I use.
 
-1. `sudo touch /etc/systemd/system/songs.service`
-2. Copy this into `songs.service`
+1. `sudo touch /etc/systemd/system/songy.service`
+2. Copy this into `songy.service`
 ```
 [Unit]
 Description=Digital song book
 
 [Service]
-ExecStart=/full/path/to/songs/executable --token <api_token> --songs-path <full/path/to/songs/folder> --lang <en|de|md>
+ExecStart=/full/path/to/songy/executable --token <api_token> --songs-path <full/path/to/songs/folder> --lang <en|de|md>
 Restart=on-failure
 
 [Install]
 WantedBy=default.target
 ```
-3. `systemctl start songs`
+3. `systemctl start songy`
