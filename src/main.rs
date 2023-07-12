@@ -208,7 +208,6 @@ fn handle_text_message(args: &IncomingTextMsg) {
 								let ss_in_title = form_msg(OutgoingTextMsg::String(search_result.ss_in_title));
 								let ss_in_lyrics = form_msg(OutgoingTextMsg::String(search_result.ss_in_lyrics));
 								params.text.push_str(&ss_in_title);
-								params.text.push_str("-----\n");
 								params.text.push_str(&ss_in_lyrics);
 								send_message(&args.api, &mut params);
 							},
