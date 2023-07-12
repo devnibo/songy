@@ -1,8 +1,8 @@
-#!/bin/bash
+#!/bin/sh
 
 # Using musl means everything is compiled statically
 # which results in an independant binary be able to
-# run in on any x86_64 based system. (That's how I understand it)
+# run it on any x86_64 based system. (That's how I understand it)
 read -p "Version Number (e.g. v1.2.3): " versionNumber
 test ${versionNumber:0:1} != "v" && versionNumber="v""$versionNumber"
 declare -a cmds=(

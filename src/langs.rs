@@ -1,5 +1,6 @@
 use std::{str, fs};
 
+#[derive(Clone)]
 pub struct Strings {
 	lang: String,
 	pub start_msg: String,

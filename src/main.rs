@@ -10,6 +10,7 @@ use frankenstein::api_params::InputFile;
 use frankenstein::api_params::SendDocumentParams;
 use frankenstein::objects::UpdateContent;
 use frankenstein::objects::AllowedUpdate;
+use std::fs::DirEntry;
 use std::{fs, thread, time};
 
 mod langs;
@@ -34,14 +35,54 @@ struct Args {
 	#[arg(short, long, help = "Absolute Path To Folder With PDF Files")]
 	songs_path: String,
 	#[arg(short, long, default_value = "en", help = "Language that the bot speaks: 'en', 'de' or 'md'")]
-	lang: String
+	lang: String,
+	#[arg(short = 'f', long, help = "Absolute Path To Search File")]
+	search_file: Option<String>
+}
+
+struct IncomingTextMsg {
+	api: Api,
+	msg: Option<Message>,
+	strings: langs::Strings,
+	songs_path: String,
+	search_file: Option<String>
+}
+
+enum OutgoingTextMsg {
+	DirEntry(Vec<DirEntry>),
+	String(Vec<String>)
+}
+
+struct FindSongArgs {
+	songs_path: String,
+	strings: langs::Strings,
+	search_string: String,
+	search_type: SearchType,
+	search_file: String
+}
+
+#[derive(Debug)]
+enum SearchType {
+	Title,
+	FullText
+}
+
+struct SearchResult {
+	ss_in_title: Vec<String>,
+	ss_in_lyrics: Vec<String>
 }
 
 fn main() {
 	let args = Args::parse();
-	let songs_path: String = add_ending_slash(args.songs_path);
-	let strings = langs::Strings::new(args.lang, songs_path.clone());
 	let api = Api::new(&args.token.as_str());
+	let songs_path: String = add_ending_slash(args.songs_path);
+	let mut incoming_text_msg = IncomingTextMsg {
+		api: api.clone(),
+		msg: None,
+		strings: langs::Strings::new(args.lang, songs_path.clone()),
+		songs_path: songs_path.clone(),
+		search_file: args.search_file.clone()
+	};
 	let mut updates_params = GetUpdatesParams::builder()
 		.allowed_updates(vec![AllowedUpdate::Message])
 		.build();
@@ -56,7 +97,8 @@ fn main() {
 					match &update.content {
 						UpdateContent::Message(msg) => {
 							if msg.text.is_some() {
-								handle_text_message(&api, msg, &strings, &songs_path);
+								incoming_text_msg.msg = Some(msg.clone());
+								handle_text_message(&incoming_text_msg);
 							}
 						},
 						_ => {}
@@ -81,82 +123,101 @@ fn add_ending_slash(path: String) -> String {
 	}
 }
 
-fn handle_text_message(api: &Api, msg: &Message, strings: &langs::Strings, songs_path: &String) {
-	let text: &str = msg.text
-		.as_ref()
-		.expect("Error while extracting text message.");
-	let chat_id: u64 = msg.from
-		.as_ref()
-		.expect("Error while extracting user.").id;
+fn handle_text_message(args: &IncomingTextMsg) {
+	let mut find_song_args = FindSongArgs {
+		search_string: String::new(),
+		songs_path: args.songs_path.clone(),
+		strings: args.strings.clone(),
+		search_type: SearchType::Title,
+		search_file: String::new()
+	};
+	if args.search_file.as_ref().is_some() {
+		let search_file = args.search_file.as_ref().unwrap();
+		if fs::File::open(search_file).is_ok() {
+			find_song_args.search_type = SearchType::FullText;
+			find_song_args.search_file =  search_file.to_string();
+		}
+	}
+	let msg = args.msg.clone().unwrap();
+	let text: &str = msg.text.as_ref().unwrap();
+	let chat_id: u64 = msg.from.as_ref().unwrap().id;
 	let mut params = SendMessageParams::builder()
 		.chat_id(ChatId::Integer(chat_id.try_into().unwrap()))
 		.text("")
 		.build();
 	match text {
 		"/start" => {
-			params.text = (*strings.start_msg).to_string();
-			send_message(api, &mut params);
+			params.text = (args.strings.start_msg).to_string();
+			send_message(&args.api, &mut params);
 		},
 		"/list" => {
-			let songs = get_songs(songs_path, None);
-			params.text = form_message(&songs);
-			send_message(api, &mut params);
+			let songs = get_songs(&args.songs_path, None);
+			params.text = form_msg(OutgoingTextMsg::DirEntry(songs));
+			send_message(&args.api, &mut params);
 		},
 		_ => {
 			if text.starts_with("/") {
-				for name in langs::get_folder_names(songs_path) {
+				for name in langs::get_folder_names(&args.songs_path) {
 					if text == "/".to_owned() + name.as_str() {
-						let songs = get_songs(songs_path, Some(&name));
-						params.text = form_message(&songs);
-						send_message(api, &mut params);
+						let songs = get_songs(&args.songs_path, Some(&name));
+						params.text = form_msg(OutgoingTextMsg::DirEntry(songs));
+						send_message(&args.api, &mut params);
 						return;
 					}
 				}
 				let len = text.as_bytes().len();
-				let maybe_files = find_songs(&text[1..len].to_string(), songs_path, strings);
-				match maybe_files {
+				find_song_args.search_string = text[1..len].to_string();
+				match title_search(&find_song_args) {
 					Ok(files) => {
 						let file = files.get(0);
 						let input_file = InputFile::builder()
-							.path(file.expect("Whatever").path())
+							.path(file.unwrap().path())
 							.build();
 						let send_document_params = SendDocumentParams::builder()
 							.chat_id(ChatId::Integer(chat_id.try_into().unwrap()))
 							.document(File::InputFile(input_file))
 							.build();
-						send_document(api, &send_document_params);
+						send_document(&args.api, &send_document_params);
 					},
 					Err(err) => {
 						println!("{}", err.message);
-						params.text = (*strings.song_not_found).to_string();
-						send_message(api, &mut params);
+						params.text = (args.strings.song_not_found).to_string();
+						send_message(&args.api, &mut params);
 					}
 				}
 			}
 			else {
-				match find_songs(&text.to_string(), songs_path, strings) {
-					Ok(files) => {
-						let mut send_document_params = SendDocumentParams::builder()
-							.chat_id(ChatId::Integer(chat_id.try_into().unwrap()))
-							.document(File::String(String::new())) // Just to have a val
-							.build();
-						if files.len() == 1 {
-							let file = files.get(0).expect("Err.");
-							let input_file = InputFile::builder()
-								.path(file.path())
-								.build();
-							send_document_params.document = File::InputFile(input_file);
-							send_document(api, &send_document_params);
-						}
-						else {
-							params.text = form_message(&files);
-							send_message(api, &mut params);
+				find_song_args.search_string = text.to_string();
+				match find_song_args.search_type {
+					SearchType::Title => {
+						match title_search(&find_song_args) {
+							Ok(files) => {
+								params.text = form_msg(OutgoingTextMsg::DirEntry(files));
+								send_message(&args.api, &mut params);
+							},
+							Err(err) => {
+								println!("{}", err.message);
+								params.text = (args.strings.song_not_found).to_string();
+								send_message(&args.api, &mut params);
+							}
 						}
 					},
-					Err(err) => {
-						params.text = (*strings.song_not_found).to_string();
-						send_message(api, &mut params);
-						println!("{}", err.message);
+					SearchType::FullText => {
+						match full_text_search(&find_song_args) {
+							Ok(search_result) => {
+								let ss_in_title = form_msg(OutgoingTextMsg::String(search_result.ss_in_title));
+								let ss_in_lyrics = form_msg(OutgoingTextMsg::String(search_result.ss_in_lyrics));
+								params.text.push_str(&ss_in_title);
+								params.text.push_str("-----\n");
+								params.text.push_str(&ss_in_lyrics);
+								send_message(&args.api, &mut params);
+							},
+							Err(err) => {
+								println!("{}", err.message);
+								params.text = (args.strings.song_not_found).to_string();
+								send_message(&args.api, &mut params);
+							}
+						}
 					}
 				}
 			}
@@ -246,29 +307,41 @@ fn find_last_line_break(text: String) -> Result<usize, usize> {
 	}
 }
 
-fn form_message(songs: &Vec<fs::DirEntry>) -> String {
+fn form_msg(songs: OutgoingTextMsg) -> String {
 	let mut message = String::new();
-	for song in songs {
-		let file_name = song.file_name();
-		let filename = file_name.to_str().expect("Error: ");
-		let s: Vec<&str> = filename.split(".").collect();
-		let name = s.get(0).expect("Error: get(0)");
-		let mut command: String = "/".to_string();
-		command.push_str(name);
-		command.push_str("\n");
-		message.push_str(command.as_str());
+	match songs {
+		OutgoingTextMsg::DirEntry(songs) => {
+			for song in songs {
+				let file_name = song.file_name();
+				let filename = file_name.to_str().unwrap();
+				let s: Vec<&str> = filename.split(".").collect();
+				let name = s.get(0).unwrap();
+				let mut command: String = "/".to_string();
+				command.push_str(name);
+				command.push_str("\n");
+				message.push_str(command.as_str());
+			}
+		},
+		OutgoingTextMsg::String(songs) => {
+			for song in songs {
+				let mut command = String::from("/");
+				command.push_str(&song);
+				command.push_str("\n");
+				message.push_str(command.as_str());
+			}
+		}
 	}
 	return message;
 }
 
-fn find_songs(search_string: &String, songs_path: &String, strings: &langs::Strings) -> Result<Vec<fs::DirEntry>, ErrNotFound> {
-	let mut result: Vec<fs::DirEntry> = vec![];
+fn title_search(args: &FindSongArgs) -> Result<Vec<DirEntry>, ErrNotFound> {
+	let mut result: Vec<DirEntry> = vec![];
 	let mut filename: String;
-	let ss = strings.format(search_string).to_lowercase();
-	for file in get_songs(songs_path, None) {
-		filename = file.file_name().to_str().expect("Error: name").to_string();
+	let ss = args.strings.format(&args.search_string).to_lowercase();
+	for file in get_songs(&args.songs_path, None) {
+		filename = file.file_name().to_str().unwrap().to_string();
 		let f: Vec<&str> = filename.split(".").collect();
-		let mut name: String = f.get(0).expect("Error: get(0)").to_string();
+		let mut name: String = f.get(0).unwrap().to_string();
 		name = name.to_lowercase();
 		if name == ss {
 			let mut one = vec![file];
@@ -280,13 +353,55 @@ fn find_songs(search_string: &String, songs_path: &String, strings: &langs::Stri
 	}
 	if result.len() > 0 {
 		return Ok(result);
-	}
-	else {
-		return Err(ErrNotFound { message: "Didn't find any song.".to_string() });
+	} else {
+		return Err(ErrNotFound { message: String::from("Didn't find any song.") });
 	}
 }
 
-fn get_songs(songs_path: &String, folder_name: Option<&String>) -> Vec<fs::DirEntry> {
+fn full_text_search(args: &FindSongArgs) -> Result<SearchResult, ErrNotFound> {
+	let mut ss_in_title: Vec<String> = vec![];
+	let mut ss_in_lyrics: Vec<String> = vec![];
+	let ss = prepare_for_search(&args.search_string);
+	let content = fs::read_to_string(&args.search_file).unwrap();
+	for line in content.lines() {
+		let s_line: Vec<&str> = line.split(':').collect();
+		let name = s_line.get(0).unwrap();
+		let song_title = s_line.get(1).unwrap();
+		let song_lyrics = s_line.get(2).unwrap();
+		if song_title.contains(&ss) {
+			ss_in_title.push(name.to_string());
+		}
+		else if song_lyrics.contains(&ss) {
+			ss_in_lyrics.push(name.to_string());
+		}
+	}
+	if ss_in_title.len() == 0 && ss_in_lyrics.len() == 0 {
+		return Err(ErrNotFound { message: String::from("Didn't find any song.") });
+	} else {
+		return Ok(SearchResult { ss_in_title, ss_in_lyrics });
+	}
+}
+
+fn prepare_for_search(string: &String) -> String {
+	let mut res = String::new();
+	// let mut is_last_line_break = false;
+	for c in string.chars() {
+		if c.is_alphabetic() {
+			res.push(c);
+			// is_last_line_break = false;
+		}
+		/* if c == '\n' || c == ' ' {
+			if !is_last_line_break {
+				res.push(' ');
+				is_last_line_break = true;
+			}
+		} */
+	}
+	res = res.to_lowercase();
+	return res;
+}
+
+fn get_songs(songs_path: &String, folder_name: Option<&String>) -> Vec<DirEntry> {
 	match folder_name {
 		Some(name) => {
 			return get_files_recursive(&(songs_path.to_owned() + name));
@@ -297,18 +412,18 @@ fn get_songs(songs_path: &String, folder_name: Option<&String>) -> Vec<fs::DirEn
 	}
 }
 
-fn get_files_recursive(folder_path: &String) -> Vec<fs::DirEntry> {
+fn get_files_recursive(folder_path: &String) -> Vec<DirEntry> {
 	let path = fs::read_dir(folder_path);
 	let mut is_dir: bool;
-	let mut songs: Vec<fs::DirEntry> = vec![];
+	let mut songs: Vec<DirEntry> = vec![];
 	match path {
 		Ok(read_dir) => {
 			for r in read_dir {
 				match r {
 					Ok(dir_entry) => {
-						is_dir = dir_entry.file_type().expect("Error: is_dir").is_dir();
+						is_dir = dir_entry.file_type().unwrap().is_dir();
 						if is_dir {
-							let path = dir_entry.path().to_str().expect("Error: name").to_string();
+							let path = dir_entry.path().to_str().unwrap().to_string();
 							for song in get_files_recursive(&path) {
 								songs.push(song);
 							}
@@ -327,6 +442,6 @@ fn get_files_recursive(folder_path: &String) -> Vec<fs::DirEntry> {
 			println!("Cannot open/read or what ever the path {}.", folder_path);
 		}
 	}
-	songs.sort_by_key(|name| name.file_name().into_string().expect("Error").to_lowercase());
+	songs.sort_by_key(|name| name.file_name().into_string().unwrap().to_lowercase());
 	return songs;
 }
