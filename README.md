@@ -40,3 +40,36 @@ Restart=on-failure
 WantedBy=default.target
 ```
 3. `systemctl start songy`
+
+### Searching Files
+
+#### Basic
+
+If you have some images or pdf files and you want to sing now then you can just throw
+them into a folder, assign that folder in the `--songs-path` argument, start the bot and you're done.
+This way every text you send to the bot that doesn't start with a slash (`/`) will be
+used to search in the file names you provided. This way you have a basic search.
+
+#### Advanced
+
+Alternatively you can provide a text file via the `--search-file` argument.
+When sending the bot a text message that doesn't start with a slash (`/`) now
+it won't search in the provided file names rather in the provided `--search-file`
+text file. For that to work the `--search-file` text file has to have the following
+structure:
+
+One song per line.
+
+```
+line 1: <filename_without_extension>:<song_title>:<song_lyrics>
+line 2: <filename_without_extension>:<song_title>:<song_lyrics>
+...
+```
+
+##### Example
+
+So suppose you have the song `Love Me Tender` in your `--songs-path` folder and the actual file name is `Love_Me_Tender.pdf` . The line for the `--search_file` text file could look like this:
+
+```
+Love_Me_Tender:lovemetender:lovemetenderlovemesweetneverletmegoyouhavemademylifecompleteandiloveyousolovemetenderlovemetrueallmydreamsfulfillformydarlingiloveyouandialwayswilllovemetenderlovemelongtakemetoyourheartforitstherethatibelongandwillneverpartlovemetenderlovemedeartellmeyouaremineillbeyoursthroughalltheyearstilltheendoftime
+```
