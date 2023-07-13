@@ -66,6 +66,11 @@ line 2: <filename_without_extension>:<song_title>:<song_lyrics>
 ...
 ```
 
+`<filename_wihtout_extension>` shouldn't contain any hyphens (`-`) or umlauts. This will be taken as the command in the list of songs and telegram will only treat the whole name as a command if you meat this requirement.
+
+`<song_title>` can contain umlauts.
+`<song_lyrics>` can contain umlauts.
+
 ##### Example
 
 So suppose you have the song `Love Me Tender` in your `--songs-path` folder and the actual file name is `Love_Me_Tender.pdf` . The line for the `--search_file` text file could look like this:
