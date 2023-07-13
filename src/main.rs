@@ -7,11 +7,14 @@ use frankenstein::ChatId;
 use frankenstein::Message;
 use frankenstein::api_params::File;
 use frankenstein::api_params::InputFile;
+use frankenstein::api_params::GetFileParams;
 use frankenstein::api_params::SendDocumentParams;
 use frankenstein::objects::UpdateContent;
 use frankenstein::objects::AllowedUpdate;
 use std::fs::DirEntry;
 use std::{fs, thread, time};
+use std::io::Write;
+use bytes::Bytes;
 
 mod langs;
 
@@ -30,14 +33,16 @@ struct ErrNotFound {
 
 #[derive(Parser, Debug)]
 struct Args {
-	#[arg(short, long, help = "Telegram Bot API Token")]
+	#[arg(short, long, help = "telegram bot api token")]
 	token: String,
-	#[arg(short, long, help = "Absolute Path To Folder With PDF Files")]
+	#[arg(short, long, help = "absolute path to folder with pdf files")]
 	songs_path: String,
-	#[arg(short, long, default_value = "en", help = "Language that the bot speaks: 'en', 'de' or 'md'")]
+	#[arg(short, long, default_value = "en", help = "language that the bot speaks: 'en', 'de' or 'md'")]
 	lang: String,
-	#[arg(short = 'f', long, help = "Absolute Path To Search File")]
-	search_file: Option<String>
+	#[arg(short = 'f', long, help = "absolute path to search file")]
+	search_file: Option<String>,
+	#[arg(short, long, help = "absolute path to folder where reports will be saved")]
+	reports_path: Option<String>
 }
 
 struct IncomingTextMsg {
@@ -72,9 +77,19 @@ struct SearchResult {
 	ss_in_lyrics: Vec<String>
 }
 
+struct HandleResult {
+	wait_for_report: bool
+}
+
+enum FileType {
+	Voice(Bytes),
+	Text(String)
+}
+
 fn main() {
 	let args = Args::parse();
 	let api = Api::new(&args.token.as_str());
+	let is_reports_path = args.reports_path.is_some();
 	let songs_path: String = add_ending_slash(args.songs_path);
 	let mut incoming_text_msg = IncomingTextMsg {
 		api: api.clone(),
@@ -86,6 +101,8 @@ fn main() {
 	let mut updates_params = GetUpdatesParams::builder()
 		.allowed_updates(vec![AllowedUpdate::Message])
 		.build();
+	let mut res = HandleResult{ wait_for_report: false };
+	let mut handle_res: Option<HandleResult>;
 	loop {
 		let dur = time::Duration::from_millis(500);
 		thread::sleep(dur);
@@ -96,9 +113,19 @@ fn main() {
 					updates_params.offset = Some(i64::from(update.update_id) + 1);
 					match &update.content {
 						UpdateContent::Message(msg) => {
+							if is_reports_path && res.wait_for_report {
+								handle_res = handle_report(&api, &msg, &args.token, &args.reports_path.as_ref().unwrap());
+								if handle_res.is_some() {
+									res = handle_res.unwrap();
+								}
+								continue;
+							}
 							if msg.text.is_some() {
 								incoming_text_msg.msg = Some(msg.clone());
-								handle_text_message(&incoming_text_msg);
+								handle_res = handle_text_message(&incoming_text_msg);
+								if handle_res.is_some() {
+									res = handle_res.unwrap();
+								}
 							}
 						},
 						_ => {}
@@ -123,7 +150,7 @@ fn add_ending_slash(path: String) -> String {
 	}
 }
 
-fn handle_text_message(args: &IncomingTextMsg) {
+fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 	let mut find_song_args = FindSongArgs {
 		search_string: String::new(),
 		songs_path: args.songs_path.clone(),
@@ -155,6 +182,11 @@ fn handle_text_message(args: &IncomingTextMsg) {
 			params.text = form_msg(OutgoingTextMsg::DirEntry(songs));
 			send_message(&args.api, &mut params);
 		},
+		"/report" => {
+			params.text = String::from("Please send an error you found.");
+			send_message(&args.api, &mut params);
+			return Some(HandleResult{ wait_for_report: true });
+		},
 		_ => {
 			if text.starts_with("/") {
 				for name in langs::get_folder_names(&args.songs_path) {
@@ -162,7 +194,7 @@ fn handle_text_message(args: &IncomingTextMsg) {
 						let songs = get_songs(&args.songs_path, Some(&name));
 						params.text = form_msg(OutgoingTextMsg::DirEntry(songs));
 						send_message(&args.api, &mut params);
-						return;
+						return None;
 					}
 				}
 				let len = text.as_bytes().len();
@@ -219,6 +251,58 @@ fn handle_text_message(args: &IncomingTextMsg) {
 						}
 					}
 				}
+			}
+		}
+	}
+	return None;
+}
+
+fn handle_report(api: &Api, msg: &Message, token: &String, reports_path: &String) -> Option<HandleResult> {
+	if msg.voice.is_some() {
+		let voice = msg.voice.clone().unwrap();
+		match api.get_file(&GetFileParams{ file_id: voice.file_id }) {
+			Ok(file) => {
+				let file_path = file.result.file_path.unwrap();
+				match download_file(token, &file_path) {
+					Ok(bytes) => save_file(FileType::Voice(bytes), reports_path),
+					Err(_) => {}
+				}
+			},
+			Err(_) => {}
+		}
+	}
+	else if msg.text.is_some() {
+		let text = msg.text.clone().unwrap();
+		save_file(FileType::Text(text), reports_path);
+	}
+	return Some(HandleResult{ wait_for_report: false });
+}
+
+fn download_file(token: &String, file_path: &String) -> Result<Bytes, reqwest::Error> {
+	let url = format!("https://api.telegram.org/file/bot{}/{}", token, file_path);
+	let bytes = reqwest::blocking::get(url)?.bytes()?;
+	return Ok(bytes);
+}
+
+fn save_file(t: FileType, reports_path: &String) {
+	let timestamp = chrono::offset::Utc::now().timestamp_millis();
+	let filepath = reports_path.to_owned() + "/" + &timestamp.to_string();
+	match t {
+		FileType::Voice(bytes) => {
+			match fs::File::create(filepath + ".ogg") {
+				Ok(mut file) => {
+					let _res = file.write(&bytes);
+				},
+				Err(_) => {}
+			}
+		},
+		FileType::Text(mut text) => {
+			match fs::File::create(filepath + ".txt") {
+				Ok(mut file) => {
+					text = text + "\n";
+					let _res = file.write(text.as_bytes());
+				},
+				Err(_) => {}
 			}
 		}
 	}
