@@ -66,7 +66,7 @@ line 2: <filename_without_extension>:<song_title>:<song_lyrics>
 ...
 ```
 
-`<filename_wihtout_extension>` shouldn't contain any hyphens (`-`) or umlauts. This will be taken as the command in the list of songs and telegram will only treat the whole name as a command if you meat this requirement.
+`<filename_wihtout_extension>` will be taken as a bot command. Telegram has the following rules about bot commands: `Commands must always start with the / symbol and contain up to 32 characters. They can use Latin letters, numbers and underscores`.
 
 `<song_title>` can contain umlauts.
 `<song_lyrics>` can contain umlauts.
