@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # Using musl means everything is compiled statically
 # which results in an independant binary be able to
