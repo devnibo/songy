@@ -26,7 +26,7 @@ The `/list` command lists all available files in the provided --songs-path recur
 
 As the bot has to run endlessly you probably want to create some sort of background service. Here's a simple solution I use.
 
-1. `sudo touch /etc/systemd/system/songy.service`
+1. `touch /etc/systemd/system/songy.service`
 2. Copy this into `songy.service`
 ```
 [Unit]
@@ -78,3 +78,7 @@ So suppose you have the song `Love Me Tender` in your `--songs-path` folder and 
 ```
 Love_Me_Tender:lovemetender:lovemetenderlovemesweetneverletmegoyouhavemademylifecompleteandiloveyousolovemetenderlovemetrueallmydreamsfulfillformydarlingiloveyouandialwayswilllovemetenderlovemelongtakemetoyourheartforitstherethatibelongandwillneverpartlovemetenderlovemedeartellmeyouaremineillbeyoursthroughalltheyearstilltheendoftime
 ```
+
+## Help
+
+If you want to use this repo but you face problems configuring it you can [contact me](mailto:kroekerrobin@gmail.com).
