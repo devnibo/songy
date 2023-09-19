@@ -15,8 +15,8 @@ use std::fs::DirEntry;
 use std::{fs, thread, time};
 use std::io::Write;
 use bytes::Bytes;
-
-mod langs;
+mod i18n;
+use i18n::I18n;
 
 /*
  * 4096 is the max character length
@@ -27,7 +27,7 @@ mod langs;
 */
 const MAX_TEXT_LEN: usize = 4096;
 
-struct ErrNotFound {
+struct SongNotFound {
 	message: String
 }
 
@@ -45,12 +45,18 @@ struct Args {
 	reports_path: Option<String>
 }
 
-struct IncomingTextMsg {
+struct HandleArg {
 	api: Api,
 	msg: Option<Message>,
-	strings: langs::Strings,
+	token: String,
+	reports_path: Option<String>,
+	i18n: I18n,
 	songs_path: String,
 	search_file: Option<String>
+}
+
+struct HandleResult {
+	wait_for_report: bool
 }
 
 enum OutgoingTextMsg {
@@ -60,7 +66,7 @@ enum OutgoingTextMsg {
 
 struct FindSongArgs {
 	songs_path: String,
-	strings: langs::Strings,
+	i18n: I18n,
 	search_string: String,
 	search_type: SearchType,
 	search_file: String
@@ -77,11 +83,7 @@ struct SearchResult {
 	ss_in_lyrics: Vec<String>
 }
 
-struct HandleResult {
-	wait_for_report: bool
-}
-
-enum FileType {
+enum ReportFileType {
 	Voice(Bytes),
 	Text(String)
 }
@@ -91,10 +93,12 @@ fn main() {
 	let api = Api::new(&args.token.as_str());
 	let is_reports_path = args.reports_path.is_some();
 	let songs_path: String = add_ending_slash(args.songs_path);
-	let mut incoming_text_msg = IncomingTextMsg {
+	let mut handle_arg = HandleArg {
 		api: api.clone(),
 		msg: None,
-		strings: langs::Strings::new(args.lang, songs_path.clone()),
+		token: args.token.clone(),
+		reports_path: args.reports_path.clone(),
+		i18n: I18n::new(args.lang, songs_path.clone()),
 		songs_path: songs_path.clone(),
 		search_file: args.search_file.clone()
 	};
@@ -113,16 +117,16 @@ fn main() {
 					updates_params.offset = Some(i64::from(update.update_id) + 1);
 					match &update.content {
 						UpdateContent::Message(msg) => {
+							handle_arg.msg = Some(msg.clone());
 							if is_reports_path && res.wait_for_report {
-								handle_res = handle_report(&api, &msg, &args.token, &args.reports_path.as_ref().unwrap());
+								handle_res = handle_report(&handle_arg);
 								if handle_res.is_some() {
 									res = handle_res.unwrap();
 								}
 								continue;
 							}
 							if msg.text.is_some() {
-								incoming_text_msg.msg = Some(msg.clone());
-								handle_res = handle_text_message(&incoming_text_msg);
+								handle_res = handle_text_message(&handle_arg);
 								if handle_res.is_some() {
 									res = handle_res.unwrap();
 								}
@@ -150,11 +154,11 @@ fn add_ending_slash(path: String) -> String {
 	}
 }
 
-fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
+fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
 	let mut find_song_args = FindSongArgs {
 		search_string: String::new(),
 		songs_path: args.songs_path.clone(),
-		strings: args.strings.clone(),
+		i18n: args.i18n.clone(),
 		search_type: SearchType::Title,
 		search_file: String::new()
 	};
@@ -174,7 +178,7 @@ fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 		.build();
 	match text {
 		"/start" => {
-			params.text = (args.strings.start_msg).to_string();
+			params.text = (args.i18n.start_msg).to_string();
 			send_message(&args.api, &mut params);
 		},
 		"/list" => {
@@ -183,13 +187,13 @@ fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 			send_message(&args.api, &mut params);
 		},
 		"/report" => {
-			params.text = String::from("Please send an error you found.");
+			params.text = args.i18n.report.msg.clone();
 			send_message(&args.api, &mut params);
 			return Some(HandleResult{ wait_for_report: true });
 		},
 		_ => {
 			if text.starts_with("/") {
-				for name in langs::get_folder_names(&args.songs_path) {
+				for name in i18n::get_folder_names(&args.songs_path) {
 					if text == "/".to_owned() + name.as_str() {
 						let songs = get_songs(&args.songs_path, Some(&name));
 						params.text = form_msg(OutgoingTextMsg::DirEntry(songs));
@@ -213,7 +217,7 @@ fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 					},
 					Err(err) => {
 						println!("{}", err.message);
-						params.text = (args.strings.song_not_found).to_string();
+						params.text = (args.i18n.song_not_found).to_string();
 						send_message(&args.api, &mut params);
 					}
 				}
@@ -229,7 +233,7 @@ fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 							},
 							Err(err) => {
 								println!("{}", err.message);
-								params.text = (args.strings.song_not_found).to_string();
+								params.text = (args.i18n.song_not_found).to_string();
 								send_message(&args.api, &mut params);
 							}
 						}
@@ -245,7 +249,7 @@ fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 							},
 							Err(err) => {
 								println!("{}", err.message);
-								params.text = (args.strings.song_not_found).to_string();
+								params.text = (args.i18n.song_not_found).to_string();
 								send_message(&args.api, &mut params);
 							}
 						}
@@ -257,38 +261,60 @@ fn handle_text_message(args: &IncomingTextMsg) -> Option<HandleResult> {
 	return None;
 }
 
-fn handle_report(api: &Api, msg: &Message, token: &String, reports_path: &String) -> Option<HandleResult> {
+fn handle_report(args: &HandleArg) -> Option<HandleResult> {
+	let msg = args.msg.clone().unwrap();
+	let reports_path = args.reports_path.clone().unwrap();
+	let chat_id: u64 = msg.from.as_ref().unwrap().id;
+	let mut params = SendMessageParams::builder()
+		.chat_id(ChatId::Integer(chat_id.try_into().unwrap()))
+		.text("")
+		.build();
 	if msg.voice.is_some() {
 		let voice = msg.voice.clone().unwrap();
-		match api.get_file(&GetFileParams{ file_id: voice.file_id }) {
+		match args.api.get_file(&GetFileParams{ file_id: voice.file_id }) {
 			Ok(file) => {
 				let file_path = file.result.file_path.unwrap();
-				match download_file(token, &file_path) {
-					Ok(bytes) => save_file(FileType::Voice(bytes), reports_path),
+				match download_file(&args.token, &file_path) {
+					Ok(bytes) => save_file(ReportFileType::Voice(bytes), &reports_path),
 					Err(_) => {}
 				}
 			},
 			Err(_) => {}
 		}
+		params.text = args.i18n.report.success_msg.clone();
+		send_message(&args.api, &mut params);
+		return Some(HandleResult{ wait_for_report: false });
 	}
 	else if msg.text.is_some() {
 		let text = msg.text.clone().unwrap();
-		save_file(FileType::Text(text), reports_path);
+		if text == String::from("/cancel") {
+			params.text = String::from(args.i18n.report.cancel_msg.clone());
+			send_message(&args.api, &mut params);
+			return Some(HandleResult{ wait_for_report: false });
+		}
+		params.text = args.i18n.report.success_msg.clone();
+		send_message(&args.api, &mut params);
+		save_file(ReportFileType::Text(text), &reports_path);
+		return Some(HandleResult{ wait_for_report: false });
 	}
-	return Some(HandleResult{ wait_for_report: false });
+	else {
+		params.text = args.i18n.report.error_msg.clone();
+		send_message(&args.api, &mut params);
+		return Some(HandleResult{ wait_for_report: true });
+	}
 }
 
 fn download_file(token: &String, file_path: &String) -> Result<Bytes, reqwest::Error> {
-	let url = format!("https://api.telegram.org/file/bot{}/{}", token, file_path);
+	let url = format!("https://api.telegram.org/file/bot{token}/{file_path}");
 	let bytes = reqwest::blocking::get(url)?.bytes()?;
 	return Ok(bytes);
 }
 
-fn save_file(t: FileType, reports_path: &String) {
+fn save_file(t: ReportFileType, reports_path: &String) {
 	let timestamp = chrono::offset::Utc::now().timestamp_millis();
 	let filepath = reports_path.to_owned() + "/" + &timestamp.to_string();
 	match t {
-		FileType::Voice(bytes) => {
+		ReportFileType::Voice(bytes) => {
 			match fs::File::create(filepath + ".ogg") {
 				Ok(mut file) => {
 					let _res = file.write(&bytes);
@@ -296,7 +322,7 @@ fn save_file(t: FileType, reports_path: &String) {
 				Err(_) => {}
 			}
 		},
-		FileType::Text(mut text) => {
+		ReportFileType::Text(mut text) => {
 			match fs::File::create(filepath + ".txt") {
 				Ok(mut file) => {
 					text = text + "\n";
@@ -417,16 +443,17 @@ fn form_msg(songs: OutgoingTextMsg) -> String {
 	return message;
 }
 
-fn title_search(args: &FindSongArgs) -> Result<Vec<DirEntry>, ErrNotFound> {
+fn title_search(args: &FindSongArgs) -> Result<Vec<DirEntry>, SongNotFound> {
 	let mut result: Vec<DirEntry> = vec![];
 	let mut filename: String;
-	let ss = args.strings.format(&args.search_string).to_lowercase();
+	let ss = args.i18n.format(&args.search_string).to_lowercase();
 	for file in get_songs(&args.songs_path, None) {
 		filename = file.file_name().to_str().unwrap().to_string();
 		let f: Vec<&str> = filename.split(".").collect();
 		let mut name: String = f.get(0).unwrap().to_string();
 		name = name.to_lowercase();
-		if name == ss {
+		if name.starts_with(&ss) {
+			// move found song to the beginning
 			let mut one = vec![file];
 			one.append(&mut result);
 			result = one;
@@ -437,21 +464,27 @@ fn title_search(args: &FindSongArgs) -> Result<Vec<DirEntry>, ErrNotFound> {
 	if result.len() > 0 {
 		return Ok(result);
 	} else {
-		return Err(ErrNotFound { message: String::from("Didn't find any song.") });
+		return Err(SongNotFound { message: String::from("Didn't find any song.") });
 	}
 }
 
-fn full_text_search(args: &FindSongArgs) -> Result<SearchResult, ErrNotFound> {
+fn full_text_search(args: &FindSongArgs) -> Result<SearchResult, SongNotFound> {
 	let mut ss_in_title: Vec<String> = vec![];
 	let mut ss_in_lyrics: Vec<String> = vec![];
-	let ss = prepare_for_search(&args.search_string);
+	let ss = prepare_for_fulltext_search(&args.search_string);
 	let content = fs::read_to_string(&args.search_file).unwrap();
 	for line in content.lines() {
 		let s_line: Vec<&str> = line.split(':').collect();
 		let name = s_line.get(0).unwrap();
 		let song_title = s_line.get(1).unwrap();
 		let song_lyrics = s_line.get(2).unwrap();
-		if song_title.contains(&ss) {
+		if song_title.starts_with(&ss) {
+			// move found song to the beginning
+			let mut temp = vec![name.to_string()];
+			temp.append(&mut ss_in_title);
+			ss_in_title = temp;
+		}
+		else if song_title.contains(&ss) {
 			ss_in_title.push(name.to_string());
 		}
 		else if song_lyrics.contains(&ss) {
@@ -459,13 +492,13 @@ fn full_text_search(args: &FindSongArgs) -> Result<SearchResult, ErrNotFound> {
 		}
 	}
 	if ss_in_title.len() == 0 && ss_in_lyrics.len() == 0 {
-		return Err(ErrNotFound { message: String::from("Didn't find any song.") });
+		return Err(SongNotFound { message: String::from("Didn't find any song.") });
 	} else {
 		return Ok(SearchResult { ss_in_title, ss_in_lyrics });
 	}
 }
 
-fn prepare_for_search(string: &String) -> String {
+fn prepare_for_fulltext_search(string: &String) -> String {
 	let mut res = String::new();
 	// let mut is_last_line_break = false;
 	for c in string.chars() {
