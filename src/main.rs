@@ -12,11 +12,13 @@ use frankenstein::api_params::SendDocumentParams;
 use frankenstein::objects::UpdateContent;
 use frankenstein::objects::AllowedUpdate;
 use std::fs::DirEntry;
-use std::{fs, thread, time};
+use std::{fs, thread, time, process};
 use std::io::Write;
 use bytes::Bytes;
 mod i18n;
 use i18n::I18n;
+use config_file::FromConfigFile;
+use serde::Deserialize;
 
 /*
  * 4096 is the max character length
@@ -31,18 +33,20 @@ struct SongNotFound {
 	message: String
 }
 
-#[derive(Parser, Debug)]
-struct Args {
+#[derive(Parser, Debug, Deserialize)]
+struct Config {
 	#[arg(short, long, help = "telegram bot api token")]
-	token: String,
-	#[arg(short, long, help = "absolute path to folder with pdf files")]
-	songs_path: String,
+	token: Option<String>,
+	#[arg(short, long, help = "path to folder with pdf files")]
+	songs_path: Option<String>,
 	#[arg(short, long, default_value = "en", help = "language that the bot speaks: 'en', 'de' or 'md'")]
-	lang: String,
-	#[arg(short = 'f', long, help = "absolute path to search file")]
+	lang: Option<String>,
+	#[arg(short = 'f', long, help = "path to search file")]
 	search_file: Option<String>,
-	#[arg(short, long, help = "absolute path to folder where reports will be saved")]
-	reports_path: Option<String>
+	#[arg(short, long, help = "path to folder where reports will be saved")]
+	reports_path: Option<String>,
+	#[arg(short, long, help = "path to yml config file")]
+	config: Option<String>
 }
 
 struct HandleArg {
@@ -89,18 +93,18 @@ enum ReportFileType {
 }
 
 fn main() {
-	let args = Args::parse();
-	let api = Api::new(&args.token.as_str());
-	let is_reports_path = args.reports_path.is_some();
-	let songs_path: String = add_ending_slash(args.songs_path);
+	let config = get_config();
+	let api = Api::new(&config.token.clone().unwrap().as_str());
+	let is_reports_path = config.reports_path.is_some();
+	let songs_path: String = add_ending_slash(config.songs_path.unwrap());
 	let mut handle_arg = HandleArg {
 		api: api.clone(),
 		msg: None,
-		token: args.token.clone(),
-		reports_path: args.reports_path.clone(),
-		i18n: I18n::new(args.lang, songs_path.clone()),
+		token: config.token.unwrap().clone(),
+		reports_path: config.reports_path.clone(),
+		i18n: I18n::new(config.lang.unwrap(), songs_path.clone()),
 		songs_path: songs_path.clone(),
-		search_file: args.search_file.clone()
+		search_file: config.search_file.clone()
 	};
 	let mut updates_params = GetUpdatesParams::builder()
 		.allowed_updates(vec![AllowedUpdate::Message])
@@ -141,6 +145,41 @@ fn main() {
 			}
 		}
 	}
+}
+
+fn get_config() -> Config {
+	let mut config: Config = Config{
+		token: None,
+		songs_path: None,
+		lang: None,
+		search_file: None,
+		reports_path: None,
+		config: None,
+	};
+	let args = Config::parse();
+	if args.config.is_some() {
+		config = Config::from_config_file(args.config.unwrap()).unwrap();
+	}
+	if args.token.is_some() {
+		config.token = args.token;
+	}
+	if args.songs_path.is_some() {
+		config.songs_path = args.songs_path;
+	}
+	if args.lang.is_some() {
+		config.lang = args.lang;
+	}
+	if args.search_file.is_some() {
+		config.search_file = args.search_file;
+	}
+	if args.reports_path.is_some() {
+		config.reports_path = args.reports_path;
+	}
+	if config.token.is_none() || config.songs_path.is_none() {
+		eprintln!("Provide at least a --token and a --songs-path.");
+		process::exit(-1);
+	}
+	config
 }
 
 fn add_ending_slash(path: String) -> String {

@@ -20,7 +20,26 @@ The `/list` command lists all available files in the provided --songs-path recur
 	1. [Create a telegram bot](https://telegram.me/BotFather) to obtain the bot api token (--token)
 	2. Which language do you want the bot to speak? english, german or moldovan (--lang)
 	3. Where do you store the files that the bot uses? (--songs-path)
-3. Start the bot: `./songs --token <api_token> --lang <en|de|md> --songs-path <full/path/to/songs/folder>`
+3. Start the bot: `./songy --token <api_token> --songs-path <full/path/to/songs/folder>`
+
+### config
+
+Instead of providing all settings via command line arguments you can provide a yml config file with the settings with the `--config` argument.
+
+e.g. `./songy --config songy.yml`.
+
+These are the available configuration options:
+
+songy.yml
+```
+search_file: <path_to_file>
+reports_path: <path_to_folder>
+token: <telegram_bot_token>
+songs_path: <path_to_folder>
+lang: <en|de|md>
+```
+
+Command line arguments have precedence over configuration file options.
 
 ### setup systemd service under linux
 
