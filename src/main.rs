@@ -29,10 +29,6 @@ use serde::Deserialize;
 */
 const MAX_TEXT_LEN: usize = 4096;
 
-struct SongNotFound {
-	message: String
-}
-
 #[derive(Parser, Debug, Deserialize)]
 struct Config {
 	#[arg(short, long, help = "telegram bot api token")]
@@ -47,6 +43,23 @@ struct Config {
 	reports_path: Option<String>,
 	#[arg(short, long, help = "path to yml config file")]
 	config: Option<String>
+}
+
+impl Config {
+	pub fn new() -> Self {
+		Self {
+			token: None,
+			songs_path: None,
+			lang: None,
+			search_file: None,
+			reports_path: None,
+			config: None
+		}
+	}
+}
+
+struct SongNotFound {
+	message: String
 }
 
 struct HandleArg {
@@ -141,21 +154,14 @@ fn main() {
 				}
 			},
 			Err(_err) => {
-				println!("Error receiving updates from Telegram Bot API.");
+				eprintln!("Error receiving updates from Telegram Bot API.");
 			}
 		}
 	}
 }
 
 fn get_config() -> Config {
-	let mut config: Config = Config{
-		token: None,
-		songs_path: None,
-		lang: None,
-		search_file: None,
-		reports_path: None,
-		config: None,
-	};
+	let mut config: Config = Config::new();
 	let args = Config::parse();
 	if args.config.is_some() {
 		config = Config::from_config_file(args.config.unwrap()).unwrap();
@@ -255,7 +261,7 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
 						send_document(&args.api, &send_document_params);
 					},
 					Err(err) => {
-						println!("{}", err.message);
+						eprintln!("{}", err.message);
 						params.text = (args.i18n.song_not_found).to_string();
 						send_message(&args.api, &mut params);
 					}
@@ -271,7 +277,7 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
 								send_message(&args.api, &mut params);
 							},
 							Err(err) => {
-								println!("{}", err.message);
+								eprintln!("{}", err.message);
 								params.text = (args.i18n.song_not_found).to_string();
 								send_message(&args.api, &mut params);
 							}
@@ -287,7 +293,7 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
 								send_message(&args.api, &mut params);
 							},
 							Err(err) => {
-								println!("{}", err.message);
+								eprintln!("{}", err.message);
 								params.text = (args.i18n.song_not_found).to_string();
 								send_message(&args.api, &mut params);
 							}
@@ -377,7 +383,7 @@ fn send_document(api: &Api, params: &SendDocumentParams) {
 	let result = api.send_document(params);
 	match result {
 		Err(err) => {
-			println!("send_document failed.");
+			eprintln!("send_document failed.");
 			dbg!(err);
 		},
 		Ok(_res) => {}
@@ -391,7 +397,7 @@ fn send_message(api: &Api, params: &mut SendMessageParams) {
 		let result = api.send_message(params);
 		match result {
 			Err(err) => {
-				println!("send_message failed.");
+				eprintln!("send_message failed.");
 				dbg!(err);
 			},
 			Ok(_res) => {}
@@ -408,7 +414,7 @@ fn send_message(api: &Api, params: &mut SendMessageParams) {
 						let result = api.send_message(params);
 						match result {
 							Err(err) => {
-								println!("send_message failed.");
+								eprintln!("send_message failed.");
 								dbg!(err);
 							},
 							Ok(_res) => {}
@@ -416,7 +422,7 @@ fn send_message(api: &Api, params: &mut SendMessageParams) {
 						text = text[index+1..].to_string();
 					},
 					Err(_) => {
-						println!("Dude, there's no line break. Deal with it.");
+						eprintln!("Dude, there's no line break. Deal with it.");
 					}
 				}
 			} else {
@@ -424,7 +430,7 @@ fn send_message(api: &Api, params: &mut SendMessageParams) {
 				let result = api.send_message(params);
 				match result {
 					Err(err) => {
-						println!("send_message failed.");
+						eprintln!("send_message failed.");
 						dbg!(err);
 					},
 					Ok(_res) => {}
@@ -448,7 +454,7 @@ fn find_last_line_break(text: String) -> Result<usize, usize> {
 				}
 			},
 			None => {
-				println!("nth error");
+				eprintln!("nth error");
 			}
 		}
 		i -= 1;
@@ -587,14 +593,14 @@ fn get_files_recursive(folder_path: &String) -> Vec<DirEntry> {
 						}
 					},
 					Err(err) => {
-						println!("Cannot access filepath.");
+						eprintln!("Cannot access filepath.");
 						dbg!(err);
 					}
 				}
 			}
 		},
 		Err(_) => {
-			println!("Cannot open/read or what ever the path {}.", folder_path);
+			eprintln!("Cannot open/read or what ever the path {}.", folder_path);
 		}
 	}
 	songs.sort_by_key(|name| name.file_name().into_string().unwrap().to_lowercase());
