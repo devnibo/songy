@@ -16,11 +16,12 @@ The `/list` command lists all available files in the provided --songs-path recur
 ## installation
 
 1. Download the [latest release](https://github.com/devnibo/songy/releases) executable
-2. Decide about the configuration
+2. Don't forget to make the downloaded file executable: `chmod +x <file>`
+3. Decide about the configuration
 	1. [Create a telegram bot](https://telegram.me/BotFather) to obtain the bot api token (--token)
 	2. Which language do you want the bot to speak? english, german or moldovan (--lang)
 	3. Where do you store the files that the bot uses? (--songs-path)
-3. Start the bot: `./songy --token <api_token> --songs-path <full/path/to/songs/folder>`
+4. Start the bot: `./songy --token <api_token> --songs-path <full/path/to/songs/folder>`
 
 ### config
 
@@ -85,7 +86,7 @@ line 2: <filename_without_extension>:<song_title>:<song_lyrics>
 ...
 ```
 
-`<filename_wihtout_extension>` will be taken as a bot command. Telegram has the following rules about bot commands: `Commands must always start with the / symbol and contain up to 32 characters. They can use Latin letters, numbers and underscores`.
+`<filename_without_extension>` will be taken as a bot command. Telegram has the following rules about bot commands: `Commands must always start with the / symbol and contain up to 32 characters. They can use Latin letters, numbers and underscores`.
 
 `<song_title>` can contain umlauts.
 `<song_lyrics>` can contain umlauts.
