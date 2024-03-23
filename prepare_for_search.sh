@@ -2,7 +2,7 @@
 # $1 is the folder of chordpro files
 
 shrink() {
-	echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\n,%!?:()'\"\`’ "
+	echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\n,%!?:()'\"\`’‘ "
 }
 
 for filename in "$1/"*;
