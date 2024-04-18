@@ -5,7 +5,7 @@ shrink() {
 	echo "$1" | tr '[:upper:]' '[:lower:]' | tr -d "\n,%!?:()'\"\`’‘ "
 }
 
-for filename in "$1/"*;
+for filename in "$1/"*.cho;
 do
 	name=$(basename "$filename")
 	name=${name%.*}
