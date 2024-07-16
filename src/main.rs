@@ -78,7 +78,8 @@ struct HandleArg {
 }
 
 struct HandleResult {
-    wait_for_report: bool,
+    // wait_for_report: bool,
+    user_id_waiting_for_report: Option<u64>,
 }
 
 enum OutgoingTextMsg {
@@ -127,10 +128,8 @@ fn main() {
     let mut updates_params = GetUpdatesParams::builder()
         .allowed_updates(vec![AllowedUpdate::Message])
         .build();
-    let mut res = HandleResult {
-        wait_for_report: false,
-    };
     let mut handle_res: Option<HandleResult>;
+    let mut user_ids_waiting_for_report = vec![];
     loop {
         let dur = time::Duration::from_millis(500);
         thread::sleep(dur);
@@ -142,17 +141,28 @@ fn main() {
                     match &update.content {
                         UpdateContent::Message(msg) => {
                             handle_arg.msg = Some(msg.clone());
-                            if is_reports_path && res.wait_for_report {
-                                handle_res = handle_report(&handle_arg);
-                                if handle_res.is_some() {
-                                    res = handle_res.unwrap();
+                            if is_reports_path && !user_ids_waiting_for_report.is_empty() {
+                                let user_id = msg.from.as_ref().unwrap().id;
+                                let mut remove_later: Option<usize> = None;
+                                for (i, id) in user_ids_waiting_for_report.iter_mut().enumerate() {
+                                    if user_id == *id {
+                                        if handle_report(&handle_arg) {
+                                            remove_later = Some(i);
+                                        }
+                                    }
+                                }
+                                if let Some(id) = remove_later {
+                                    user_ids_waiting_for_report.swap_remove(id);
                                 }
                                 continue;
                             }
                             if msg.text.is_some() {
                                 handle_res = handle_text_message(&handle_arg);
-                                if handle_res.is_some() {
-                                    res = handle_res.unwrap();
+                                if let Some(res) = handle_res {
+                                    if let Some(id) = res.user_id_waiting_for_report {
+                                        user_ids_waiting_for_report
+                                            .push(id);
+                                    }
                                 }
                             }
                         }
@@ -170,8 +180,8 @@ fn main() {
 fn get_config() -> Config {
     let mut config: Config = Config::new();
     let args = Config::parse();
-    if args.config.is_some() {
-        config = Config::from_config_file(args.config.unwrap()).unwrap();
+    if let Some(conf) = args.config {
+        config = Config::from_config_file(conf).unwrap();
     }
     if args.token.is_some() {
         config.token = args.token;
@@ -213,8 +223,7 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
         search_type: SearchType::Title,
         search_file: String::new(),
     };
-    if args.search_file.as_ref().is_some() {
-        let search_file = args.search_file.as_ref().unwrap();
+    if let Some(search_file) = args.search_file.as_ref() {
         if fs::File::open(search_file).is_ok() {
             find_song_args.search_type = SearchType::FullText;
             find_song_args.search_file = search_file.to_string();
@@ -241,7 +250,7 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
             params.text = args.i18n.report.msg.clone();
             send_message(&args.api, &mut params);
             return Some(HandleResult {
-                wait_for_report: true,
+                user_id_waiting_for_report: Some(chat_id),
             });
         }
         _ => {
@@ -309,7 +318,7 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
     return None;
 }
 
-fn handle_report(args: &HandleArg) -> Option<HandleResult> {
+fn handle_report(args: &HandleArg) -> bool {
     let msg = args.msg.clone().unwrap();
     let reports_path = args.reports_path.clone().unwrap();
     let chat_id: u64 = msg.from.as_ref().unwrap().id;
@@ -317,8 +326,7 @@ fn handle_report(args: &HandleArg) -> Option<HandleResult> {
         .chat_id(ChatId::Integer(chat_id.try_into().unwrap()))
         .text("")
         .build();
-    if msg.voice.is_some() {
-        let voice = msg.voice.clone().unwrap();
+    if let Some(voice) = msg.voice {
         match args.api.get_file(&GetFileParams {
             file_id: voice.file_id,
         }) {
@@ -333,30 +341,21 @@ fn handle_report(args: &HandleArg) -> Option<HandleResult> {
         }
         params.text = args.i18n.report.success_msg.clone();
         send_message(&args.api, &mut params);
-        return Some(HandleResult {
-            wait_for_report: false,
-        });
-    } else if msg.text.is_some() {
-        let text = msg.text.clone().unwrap();
+        return true;
+    } else if let Some(text) = msg.text {
         if text == String::from("/cancel") {
             params.text = String::from(args.i18n.report.cancel_msg.clone());
             send_message(&args.api, &mut params);
-            return Some(HandleResult {
-                wait_for_report: false,
-            });
+            return true;
         }
         params.text = args.i18n.report.success_msg.clone();
         send_message(&args.api, &mut params);
         save_file(ReportFileType::Text(text), &reports_path);
-        return Some(HandleResult {
-            wait_for_report: false,
-        });
+        return true;
     } else {
         params.text = args.i18n.report.error_msg.clone();
         send_message(&args.api, &mut params);
-        return Some(HandleResult {
-            wait_for_report: true,
-        });
+        return false;
     }
 }
 
