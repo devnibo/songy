@@ -89,6 +89,7 @@ line 2: <filename_without_extension>:<song_title>:<song_lyrics>
 `<filename_without_extension>` will be taken as a bot command. Telegram has the following rules about bot commands: `Commands must always start with the / symbol and contain up to 32 characters. They can use Latin letters, numbers and underscores`.
 
 `<song_title>` can contain umlauts.
+
 `<song_lyrics>` can contain umlauts.
 
 ##### Example
