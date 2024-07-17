@@ -144,8 +144,10 @@ fn main() {
                             if is_reports_path && !user_ids_waiting_for_report.is_empty() {
                                 let user_id = msg.from.as_ref().unwrap().id;
                                 let mut remove_later: Option<usize> = None;
-                                for (i, id) in user_ids_waiting_for_report.iter_mut().enumerate() {
+                                let mut skip = false;
+                                for (i, id) in user_ids_waiting_for_report.iter().enumerate() {
                                     if user_id == *id {
+                                        skip = true;
                                         if handle_report(&handle_arg) {
                                             remove_later = Some(i);
                                         }
@@ -154,7 +156,9 @@ fn main() {
                                 if let Some(id) = remove_later {
                                     user_ids_waiting_for_report.swap_remove(id);
                                 }
-                                continue;
+                                if skip {
+                                    continue;
+                                }
                             }
                             if msg.text.is_some() {
                                 handle_res = handle_text_message(&handle_arg);
