@@ -164,8 +164,7 @@ fn main() {
                                 handle_res = handle_text_message(&handle_arg);
                                 if let Some(res) = handle_res {
                                     if let Some(id) = res.user_id_waiting_for_report {
-                                        user_ids_waiting_for_report
-                                            .push(id);
+                                        user_ids_waiting_for_report.push(id);
                                     }
                                 }
                             }
@@ -301,13 +300,48 @@ fn handle_text_message(args: &HandleArg) -> Option<HandleResult> {
                     },
                     SearchType::FullText => match full_text_search(&find_song_args) {
                         Ok(search_result) => {
-                            let ss_in_title =
-                                form_msg(OutgoingTextMsg::String(search_result.ss_in_title));
-                            let ss_in_lyrics =
-                                form_msg(OutgoingTextMsg::String(search_result.ss_in_lyrics));
-                            params.text.push_str(&ss_in_title);
-                            params.text.push_str(&ss_in_lyrics);
-                            send_message(&args.api, &mut params);
+                            let mut only_one_result: Option<String> = None;
+                            if search_result.ss_in_title.len() == 1
+                                && search_result.ss_in_lyrics.len() == 0
+                            {
+                                only_one_result = Some(search_result.ss_in_title[0].clone());
+                            } else if search_result.ss_in_title.len() == 0
+                                && search_result.ss_in_lyrics.len() == 1
+                            {
+                                only_one_result = Some(search_result.ss_in_lyrics[0].clone());
+                            }
+                            if let Some(new_search_string) = only_one_result {
+                                find_song_args.search_string = new_search_string;
+                                match title_search(&find_song_args) {
+                                    Ok(files) => {
+                                        let file = files.get(0);
+                                        let input_file =
+                                            InputFile::builder().path(file.unwrap().path()).build();
+                                        let send_document_params = SendDocumentParams::builder()
+                                            .chat_id(ChatId::Integer(chat_id.try_into().unwrap()))
+                                            .document(File::InputFile(input_file))
+                                            .build();
+                                        send_document(&args.api, &send_document_params);
+                                    }
+                                    Err(err) => {
+                                        /*
+                                            This can't be reached in theory
+                                            because we've already found a song previously
+                                        */
+                                        eprintln!("{}", err.message);
+                                        params.text = (args.i18n.song_not_found).to_string();
+                                        send_message(&args.api, &mut params);
+                                    }
+                                }
+                            } else {
+                                let ss_in_title =
+                                    form_msg(OutgoingTextMsg::String(search_result.ss_in_title));
+                                let ss_in_lyrics =
+                                    form_msg(OutgoingTextMsg::String(search_result.ss_in_lyrics));
+                                params.text.push_str(&ss_in_title);
+                                params.text.push_str(&ss_in_lyrics);
+                                send_message(&args.api, &mut params);
+                            }
                         }
                         Err(err) => {
                             eprintln!("{}", err.message);
