@@ -19,7 +19,7 @@ The `/list` command lists all available files in the provided --songs-path recur
 2. Don't forget to make the downloaded file executable: `chmod +x <file>`
 3. Decide about the configuration
 	1. [Create a telegram bot](https://telegram.me/BotFather) to obtain the bot api token (--token)
-	2. Which language do you want the bot to speak? english, german or moldovan (--lang)
+	2. Which language do you want the bot to speak? english, german or romanian/moldovan (--lang)
 	3. Where do you store the files that the bot uses? (--songs-path)
 4. Start the bot: `./songy --token <api_token> --songs-path <full/path/to/songs/folder>`
 

@@ -39,7 +39,7 @@ struct Config {
         short,
         long,
         default_value = "en",
-        help = "language that the bot speaks: 'en', 'de' or 'md'"
+        help = "language that the bot speaks: 'en', 'de' or 'ro/md'"
     )]
     lang: Option<String>,
     #[arg(short = 'f', long, help = "path to search file")]

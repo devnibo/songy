@@ -43,7 +43,7 @@ impl I18n {
                     cancel_msg: String::from("Das Fehlermelden wurde abgebrochen."),
                 },
             },
-            "md" => Self {
+            "ro" | "md" => Self {
                 lang,
                 start_msg: String::from(format!(
                     "Salut! Această e o carte de cântari digitală. :)\n\
