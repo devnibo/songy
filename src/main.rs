@@ -38,7 +38,6 @@ struct Config {
     #[arg(
         short,
         long,
-        default_value = "en",
         help = "language that the bot speaks: 'en', 'de' or 'ro/md'"
     )]
     lang: Option<String>,
@@ -204,6 +203,9 @@ fn get_config() -> Config {
     if config.token.is_none() || config.songs_path.is_none() {
         eprintln!("Provide at least a --token and a --songs-path.");
         process::exit(-1);
+    }
+    if config.lang.is_none() {
+        config.lang = Some(String::from("en"));
     }
     config
 }
