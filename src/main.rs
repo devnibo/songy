@@ -12,6 +12,7 @@ use frankenstein::GetUpdatesParams;
 use frankenstein::Message;
 use frankenstein::SendMessageParams;
 use frankenstein::TelegramApi;
+use std::collections::VecDeque;
 use std::fs::DirEntry;
 use std::io::Write;
 use std::{fs, process, thread, time};
@@ -535,23 +536,33 @@ fn form_msg(songs: OutgoingTextMsg) -> String {
 }
 
 fn title_search(args: &FindSongArgs) -> Result<Vec<DirEntry>, SongNotFound> {
-    let mut result: Vec<DirEntry> = vec![];
+    let mut exact_match: Option<DirEntry> = None;
+    let mut matches: VecDeque<DirEntry> = VecDeque::new();
     let mut filename: String;
     let ss = args.i18n.format(&args.search_string).to_lowercase();
+
     for file in get_songs(&args.songs_path, None) {
         filename = file.file_name().to_str().unwrap().to_string();
-        let f: Vec<&str> = filename.split(".").collect();
-        let mut name: String = f.get(0).unwrap().to_string();
-        name = name.to_lowercase();
-        if name.starts_with(&ss) {
-            // move found song to the beginning
-            let mut one = vec![file];
-            one.append(&mut result);
-            result = one;
+        let name = filename
+            .split(".")
+            .collect::<Vec<&str>>()
+            .get(0)
+            .unwrap()
+            .to_string()
+            .to_lowercase();
+        if name == ss {
+            exact_match = Some(file);
+        } else if name.starts_with(&ss) {
+            matches.push_front(file);
         } else if name.contains(&ss) {
-            result.push(file);
+            matches.push_back(file);
         }
     }
+    let mut result: Vec<DirEntry> = Vec::new();
+    if let Some(entry) = exact_match {
+        result.push(entry);
+    }
+    result.append(&mut matches.into_iter().collect());
     if result.len() > 0 {
         return Ok(result);
     } else {
