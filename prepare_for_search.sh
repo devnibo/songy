@@ -7,11 +7,11 @@ shrink() {
 	echo "$1" | awk '{ print tolower($0) }' | sed "s/[(\^$),%!?:()'\"\`’‘ ]//g" | tr -d "\n"
 }
 
-for filename in "$1/"*.cho;
+for file in $(find "$1" -name '*.cho')
 do
-	name=$(basename "$filename")
+	name=$(basename "$file")
 	name=${name%.*}
-	title=$(shrink "$(cho2txt -t "$filename" | head -n1)")
-	content=$(shrink "$(cho2txt "$filename")")
+	title=$(shrink "$(cho2txt -t "$file" | head -n1)")
+	content=$(shrink "$(cho2txt "$file")")
 	echo "$name:$title:$content"
 done
